@@ -6,9 +6,11 @@
 package accounts
 
 import (
+	"context"
 	"math/big"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -107,19 +109,21 @@ func (a *Accounts) sterilizeOptions(options *ContractCall) {
 		options.Gas = math.MaxUint64
 	}
 	if options.GasPrice == nil {
-		gp := new(big.Int)
-		dgp := math.HexOrDecimal256(*gp)
-		options.GasPrice = &dgp
+		options.GasPrice = (*math.HexOrDecimal256)(new(big.Int))
 	}
 	if options.Value == nil {
-		v := new(big.Int)
-		dv := math.HexOrDecimal256(*v)
-		options.Value = &dv
+		options.Value = (*math.HexOrDecimal256)(new(big.Int))
+	}
+	if options.Caller == nil {
+		options.Caller = &thor.Address{}
+	}
+	if options.Data == "" {
+		options.Data = "0x"
 	}
 }
 
 //Call a contract with input
-func (a *Accounts) Call(to *thor.Address, body *ContractCall, header *block.Header) (output *VMOutput, err error) {
+func (a *Accounts) Call(ctx context.Context, to *thor.Address, body *ContractCall, header *block.Header) (output *VMOutput, err error) {
 	a.sterilizeOptions(body)
 	state, err := a.stateCreator.NewState(header.StateRoot())
 	if err != nil {
@@ -142,19 +146,28 @@ func (a *Accounts) Call(to *thor.Address, body *ContractCall, header *block.Head
 			GasLimit:    header.GasLimit(),
 			TotalScore:  header.TotalScore()})
 
-	vmout := rt.ExecuteClause(clause, 0, body.Gas, &xenv.TransactionContext{
-		Origin:     body.Caller,
+	exec, interrupt := rt.PrepareClause(clause, 0, body.Gas, &xenv.TransactionContext{
+		Origin:     *body.Caller,
 		GasPrice:   gp,
 		ProvedWork: &big.Int{}})
-
-	if err := rt.Seeker().Err(); err != nil {
-		return nil, err
+	vmout := make(chan *runtime.Output, 1)
+	go func() {
+		o, _ := exec()
+		vmout <- o
+	}()
+	select {
+	case <-ctx.Done():
+		interrupt()
+		return nil, ctx.Err()
+	case vo := <-vmout:
+		if err := rt.Seeker().Err(); err != nil {
+			return nil, err
+		}
+		if err := state.Err(); err != nil {
+			return nil, err
+		}
+		return convertVMOutputWithInputGas(vo, body.Gas), nil
 	}
-	if err := state.Err(); err != nil {
-		return nil, err
-	}
-	return convertVMOutputWithInputGas(vmout, body.Gas), nil
-
 }
 
 func (a *Accounts) handleGetAccount(w http.ResponseWriter, req *http.Request) error {
@@ -224,16 +237,20 @@ func (a *Accounts) handleCallContract(w http.ResponseWriter, req *http.Request) 
 		return err
 	}
 	address := mux.Vars(req)["address"]
-	var output *VMOutput
+	ctx, cancel := context.WithTimeout(req.Context(), time.Second*10)
+	defer cancel()
 	if address == "" {
-		output, err = a.Call(nil, callBody, h)
-	} else {
-		addr, err := thor.ParseAddress(address)
+		output, err := a.Call(ctx, nil, callBody, h)
 		if err != nil {
-			return utils.BadRequest(errors.WithMessage(err, "address"))
+			return err
 		}
-		output, err = a.Call(&addr, callBody, h)
+		return utils.WriteJSON(w, output)
 	}
+	addr, err := thor.ParseAddress(address)
+	if err != nil {
+		return utils.BadRequest(errors.WithMessage(err, "address"))
+	}
+	output, err := a.Call(ctx, &addr, callBody, h)
 	if err != nil {
 		return err
 	}
@@ -276,17 +293,9 @@ func (a *Accounts) Mount(root *mux.Router, pathPrefix string) {
 	sub := root.PathPrefix(pathPrefix).Subrouter()
 
 	sub.Path("/{address}").Methods(http.MethodGet).HandlerFunc(utils.WrapHandlerFunc(a.handleGetAccount))
-	sub.Path("/{address}").Queries("revision", "{revision}").Methods(http.MethodGet).HandlerFunc(utils.WrapHandlerFunc(a.handleGetAccount))
-
 	sub.Path("/{address}/code").Methods(http.MethodGet).HandlerFunc(utils.WrapHandlerFunc(a.handleGetCode))
-
 	sub.Path("/{address}/storage/{key}").Methods("GET").HandlerFunc(utils.WrapHandlerFunc(a.handleGetStorage))
-	sub.Path("/{address}/storage/{key}").Queries("revision", "{revision}").Methods("GET").HandlerFunc(utils.WrapHandlerFunc(a.handleGetStorage))
-
 	sub.Path("").Methods("POST").HandlerFunc(utils.WrapHandlerFunc(a.handleCallContract))
-	sub.Path("").Queries("revision", "{revision}").Methods("POST").HandlerFunc(utils.WrapHandlerFunc(a.handleCallContract))
-
 	sub.Path("/{address}").Methods("POST").HandlerFunc(utils.WrapHandlerFunc(a.handleCallContract))
-	sub.Path("/{address}").Queries("revision", "{revision}").Methods("POST").HandlerFunc(utils.WrapHandlerFunc(a.handleCallContract))
 
 }

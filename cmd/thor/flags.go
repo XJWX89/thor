@@ -13,7 +13,7 @@ import (
 var (
 	networkFlag = cli.StringFlag{
 		Name:  "network",
-		Usage: "the network to join (test)",
+		Usage: "the network to join (main|test)",
 	}
 	configDirFlag = cli.StringFlag{
 		Name:   "config-dir",
@@ -58,7 +58,7 @@ var (
 	}
 	natFlag = cli.StringFlag{
 		Name:  "nat",
-		Value: "none",
+		Value: "any",
 		Usage: "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)",
 	}
 	onDemandFlag = cli.BoolFlag{
@@ -68,6 +68,11 @@ var (
 	persistFlag = cli.BoolFlag{
 		Name:  "persist",
 		Usage: "blockchain data storage option, if setted data will be saved to disk",
+	}
+	gasLimitFlag = cli.IntFlag{
+		Name:  "gas-limit",
+		Value: 10000000,
+		Usage: "block gas limit",
 	}
 	importMasterKeyFlag = cli.BoolFlag{
 		Name:  "import",

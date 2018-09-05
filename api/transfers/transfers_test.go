@@ -36,8 +36,8 @@ func getTransfers(t *testing.T) {
 	from := thor.BytesToAddress([]byte("from"))
 	to := thor.BytesToAddress([]byte("to"))
 	tf := &logdb.TransferFilter{
-		AddressSets: []*logdb.AddressSet{
-			&logdb.AddressSet{
+		CriteriaSet: []*logdb.TransferCriteria{
+			&logdb.TransferCriteria{
 				TxOrigin:  &from,
 				Recipient: &to,
 			},
@@ -53,11 +53,7 @@ func getTransfers(t *testing.T) {
 		},
 		Order: logdb.DESC,
 	}
-	f, err := json.Marshal(tf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res := httpPost(t, ts.URL+"/transfers", f)
+	res := httpPost(t, ts.URL+"/logs/transfer", tf)
 	var tLogs []*transfers.FilteredTransfer
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
@@ -90,11 +86,15 @@ func initLogServer(t *testing.T) {
 	}
 
 	router := mux.NewRouter()
-	transfers.New(db).Mount(router, "/transfers")
+	transfers.New(db).Mount(router, "/logs/transfer")
 	ts = httptest.NewServer(router)
 }
 
-func httpPost(t *testing.T, url string, data []byte) []byte {
+func httpPost(t *testing.T, url string, obj interface{}) []byte {
+	data, err := json.Marshal(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
 	res, err := http.Post(url, "application/x-www-form-urlencoded", bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)

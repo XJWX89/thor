@@ -1,10 +1,29 @@
-## VeChainThor 
+# VeChain Thor &nbsp;&nbsp; [![Gitter](https://badges.gitter.im/vechain/thor.svg)](https://gitter.im/vechain/thor?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-Thor is VeChain's new generation blockchain project.  It's the official implementation written in golang.
+A general purpose blockchain highly compatible with Ethereum's ecosystem.
 
+This is the first implementation written in golang.
+
+[![Go](https://img.shields.io/badge/golang-%3E%3D1.10-orange.svg?style=flat-square")](https://golang.org)
 [![Go Report Card](https://goreportcard.com/badge/github.com/vechain/thor)](https://goreportcard.com/report/github.com/vechain/thor)
 [![Travis](https://travis-ci.org/vechain/thor.svg?branch=master)](https://travis-ci.org/vechain/thor)
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/vechain-thor/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=badge)
+[![License](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://github.com/vechain/thor/blob/master/LICENSE)
+
+## Table of contents
+
+* [Installation](#installation)
+    * [Requirements](#requirements)
+    * [Getting the source](#getting-the-source)
+    * [Dependency management](#dependency-management)
+    * [Building](#building)
+* [Running Thor](#running-thor)
+    * [Sub-commands](#sub-commands)
+* [Docker](#docker)
+* [Explorers](#explorers)
+* [Faucet](#testnet-faucet)
+* [RESTful API](#api)
+* [Acknowledgement](#acknowledgement)
+* [Contributing](#contributing)
 
 ## Installation
 
@@ -35,7 +54,7 @@ To manually install dependencies, choices are
 - [dep](https://github.com/golang/dep), Golang's official dependency management tool 
 
     ```
-    dep ensure
+    dep ensure -vendor-only
     ```
     (*Note that to make `dep` work, you should put the source code at `$GOPATH/src/github.com/vechain/thor`*)
 
@@ -73,7 +92,7 @@ bin/thor --network main
 Connect to VeChain's testnet:
 
 ```
-bin/thor ---network test
+bin/thor --network test
 ```
 
 
@@ -116,6 +135,28 @@ bin/thor master-key --export > keystore.json
 cat keystore.json | bin/thor master-key --import
 ```
 
+## Docker
+
+Docker is one quick way for running a vechain node:
+
+```
+docker run -d\
+  -v {path-to-your-data-directory}/.org.vechain.thor:/root/.org.vechain.thor\
+  -p 127.0.0.1:8669:8669 -p 11235:11235 -p 11235:11235/udp\
+  --name thor-node vechain/thor --network test
+```
+
+Do not forget to add the `--api-addr 0.0.0.0:8669` flag if you want other containers and/or hosts to have access to the RESTful API. `Thor`binds to `localhost` by default and it will not accept requests outside the container itself without the flag.
+
+The [Dockerfile](Dockerfile) is designed to build the last release of the source code and will publish docker images to [dockerhub](https://hub.docker.com/r/vechain/thor/) by release, feel free to fork and build Dockerfile for your own purpose.
+
+## Explorers
+
+Awesome explorers built by the community:
+
+- [VeScan](https://www.vescan.io/)
+- [VeForge](https://explore.veforge.com/) by *Totient Labs*
+- [TheVechain](https://thevechain.com/)
 
 ## Testnet faucet
 
@@ -127,14 +168,15 @@ curl -X POST -d '{"to":"Your_Address"}' -H "Content-Type: application/json" http
 
 Once `thor` started, online *OpenAPI* doc can be accessed in your browser. e.g. http://localhost:8669/ by default.
 
-
+[![Thorest](thorest.png)](http://localhost:8669/)
 
 ## Acknowledgement
 
 A Special shout out to following projects:
 
-- go-ethereum
-- swagger-ui
+- [Ethereum](https://github.com/ethereum)
+
+- [Swagger](https://github.com/swagger-api)
 
 ## Contributing
 
@@ -160,6 +202,6 @@ Please check the following:
 
 ## License
 
-VeChainThor is licensed under the
+VeChain Thor is licensed under the
 [GNU Lesser General Public License v3.0](https://www.gnu.org/licenses/lgpl-3.0.html), also included
 in *LICENSE* file in repository.

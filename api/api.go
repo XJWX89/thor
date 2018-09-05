@@ -7,16 +7,21 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	assetfs "github.com/elazarl/go-bindata-assetfs"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/vechain/thor/api/accounts"
 	"github.com/vechain/thor/api/blocks"
 	"github.com/vechain/thor/api/doc"
 	"github.com/vechain/thor/api/events"
+	"github.com/vechain/thor/api/eventslegacy"
 	"github.com/vechain/thor/api/node"
+	"github.com/vechain/thor/api/subscriptions"
 	"github.com/vechain/thor/api/transactions"
 	"github.com/vechain/thor/api/transfers"
+	"github.com/vechain/thor/api/transferslegacy"
 	"github.com/vechain/thor/chain"
 	"github.com/vechain/thor/logdb"
 	"github.com/vechain/thor/state"
@@ -24,7 +29,12 @@ import (
 )
 
 //New return api router
-func New(chain *chain.Chain, stateCreator *state.Creator, txPool *txpool.TxPool, logDB *logdb.LogDB, nw node.Network) http.HandlerFunc {
+func New(chain *chain.Chain, stateCreator *state.Creator, txPool *txpool.TxPool, logDB *logdb.LogDB, nw node.Network, allowedOrigins string) (http.HandlerFunc, func()) {
+	origins := strings.Split(strings.TrimSpace(allowedOrigins), ",")
+	for i, o := range origins {
+		origins[i] = strings.ToLower(strings.TrimSpace(o))
+	}
+
 	router := mux.NewRouter()
 
 	// to serve api doc and swagger-ui
@@ -47,12 +57,25 @@ func New(chain *chain.Chain, stateCreator *state.Creator, txPool *txpool.TxPool,
 		Mount(router, "/events")
 	transfers.New(logDB).
 		Mount(router, "/transfers")
+	eventslegacy.New(logDB).
+		Mount(router, "/logs/events")
+	events.New(logDB).
+		Mount(router, "/logs/event")
+	transferslegacy.New(logDB).
+		Mount(router, "/logs/transfers")
+	transfers.New(logDB).
+		Mount(router, "/logs/transfer")
 	blocks.New(chain).
 		Mount(router, "/blocks")
 	transactions.New(chain, txPool).
 		Mount(router, "/transactions")
 	node.New(nw).
 		Mount(router, "/node")
+	subs := subscriptions.New(chain, origins)
+	subs.Mount(router, "/subscriptions")
 
-	return router.ServeHTTP
+	return handlers.CORS(
+			handlers.AllowedOrigins(origins),
+			handlers.AllowedHeaders([]string{"content-type"}))(router).ServeHTTP,
+		subs.Close // subscriptions handles hijacked conns, which need to be closed
 }

@@ -21,7 +21,6 @@ import (
 
 // peer will be disconnected if error returned
 func (c *Communicator) handleRPC(peer *Peer, msg *p2p.Msg, write func(interface{}), txsToSync *txsToSync) (err error) {
-	const maxResultSize = 2 * 1024 * 1024
 
 	log := peer.logger.New("msg", proto.MsgName(msg.Code))
 	log.Debug("received RPC call")
@@ -71,7 +70,7 @@ func (c *Communicator) handleRPC(peer *Peer, msg *p2p.Msg, write func(interface{
 			return errors.WithMessage(err, "decode msg")
 		}
 		peer.MarkTransaction(newTx.ID())
-		c.txPool.Add(newTx)
+		c.txPool.StrictlyAdd(newTx)
 		write(&struct{}{})
 	case proto.MsgGetBlockByID:
 		var blockID thor.Bytes32
@@ -110,9 +109,10 @@ func (c *Communicator) handleRPC(peer *Peer, msg *p2p.Msg, write func(interface{
 		}
 
 		const maxBlocks = 1024
+		const maxSize = 512 * 1024
 		result := make([]rlp.RawValue, 0, maxBlocks)
 		var size metric.StorageSize
-		for size < maxResultSize && len(result) < maxBlocks {
+		for size < maxSize && len(result) < maxBlocks {
 			raw, err := c.chain.GetTrunkBlockRaw(num)
 			if err != nil {
 				if !c.chain.IsNotFound(err) {

@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -22,10 +21,10 @@ import (
 	ethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/gorilla/handlers"
 	"github.com/inconshreveable/log15"
 	"github.com/vechain/thor/chain"
 	"github.com/vechain/thor/cmd/thor/node"
+	"github.com/vechain/thor/co"
 	"github.com/vechain/thor/comm"
 	"github.com/vechain/thor/genesis"
 	"github.com/vechain/thor/logdb"
@@ -51,6 +50,8 @@ func selectGenesis(ctx *cli.Context) *genesis.Genesis {
 	switch network {
 	case "test":
 		return genesis.NewTestnet()
+	case "main":
+		return genesis.NewMainnet()
 	default:
 		cli.ShowAppHelp(ctx)
 		if network == "" {
@@ -184,12 +185,12 @@ func loadNodeMaster(ctx *cli.Context) *node.Master {
 }
 
 type p2pComm struct {
-	comm      *comm.Communicator
-	p2pSrv    *p2psrv.Server
-	savePeers func()
+	comm           *comm.Communicator
+	p2pSrv         *p2psrv.Server
+	peersCachePath string
 }
 
-func startP2PComm(ctx *cli.Context, chain *chain.Chain, txPool *txpool.TxPool, instanceDir string) *p2pComm {
+func newP2PComm(ctx *cli.Context, chain *chain.Chain, txPool *txpool.TxPool, instanceDir string) *p2pComm {
 	configDir := makeConfigDir(ctx)
 	key, err := loadOrGeneratePrivateKey(filepath.Join(configDir, "p2p.key"))
 	if err != nil {
@@ -220,61 +221,59 @@ func startP2PComm(ctx *cli.Context, chain *chain.Chain, txPool *txpool.TxPool, i
 	} else if err := rlp.DecodeBytes(data, &opts.KnownNodes); err != nil {
 		log.Warn("failed to load peers cache", "err", err)
 	}
-	srv := p2psrv.New(opts)
-
-	comm := comm.New(chain, txPool)
-	if err := srv.Start(comm.Protocols()); err != nil {
-		fatal("start P2P server:", err)
-	}
-	comm.Start()
 
 	return &p2pComm{
-		comm:   comm,
-		p2pSrv: srv,
-		savePeers: func() {
-			nodes := srv.KnownNodes()
-			data, err := rlp.EncodeToBytes(nodes)
-			if err != nil {
-				log.Warn("failed to encode cached peers", "err", err)
-				return
-			}
-			if err := ioutil.WriteFile(peersCachePath, data, 0600); err != nil {
-				log.Warn("failed to write peers cache", "err", err)
-			}
-		},
+		comm:           comm.New(chain, txPool),
+		p2pSrv:         p2psrv.New(opts),
+		peersCachePath: peersCachePath,
 	}
 }
 
-func (c *p2pComm) Shutdown() {
-	c.comm.Stop()
-	log.Info("stopping communicator...")
-
-	c.p2pSrv.Stop()
-	log.Info("stopping P2P server...")
-
-	c.savePeers()
-	log.Info("saving peers cache...")
+func (p *p2pComm) Start() {
+	log.Info("starting P2P networking")
+	if err := p.p2pSrv.Start(p.comm.Protocols()); err != nil {
+		fatal("start P2P server:", err)
+	}
+	p.comm.Start()
 }
 
-func startAPIServer(ctx *cli.Context, handler http.Handler) (*http.Server, string) {
+func (p *p2pComm) Stop() {
+	log.Info("stopping communicator...")
+	p.comm.Stop()
+
+	log.Info("stopping P2P server...")
+	p.p2pSrv.Stop()
+
+	log.Info("saving peers cache...")
+	nodes := p.p2pSrv.KnownNodes()
+	data, err := rlp.EncodeToBytes(nodes)
+	if err != nil {
+		log.Warn("failed to encode cached peers", "err", err)
+		return
+	}
+	if err := ioutil.WriteFile(p.peersCachePath, data, 0600); err != nil {
+		log.Warn("failed to write peers cache", "err", err)
+	}
+}
+
+func startAPIServer(ctx *cli.Context, handler http.Handler, genesisID thor.Bytes32) (string, func()) {
 	addr := ctx.String(apiAddrFlag.Name)
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		fatal(fmt.Sprintf("listen API addr [%v]: %v", addr, err))
 	}
 
-	if origins := ctx.String(apiCorsFlag.Name); origins != "" {
-		handler = handlers.CORS(
-			handlers.AllowedOrigins(strings.Split(origins, ",")),
-			handlers.AllowedHeaders([]string{"content-type"}),
-		)(handler)
-	}
-
-	srv := &http.Server{Handler: requestBodyLimit(handler)}
-	go func() {
+	handler = handleXGenesisID(handler, genesisID)
+	handler = requestBodyLimit(handler)
+	srv := &http.Server{Handler: handler}
+	var goes co.Goes
+	goes.Go(func() {
 		srv.Serve(listener)
-	}()
-	return srv, "http://" + listener.Addr().String() + "/"
+	})
+	return "http://" + listener.Addr().String() + "/", func() {
+		srv.Close()
+		goes.Wait()
+	}
 }
 
 func printStartupMessage(
