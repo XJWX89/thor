@@ -29,7 +29,7 @@ import (
 )
 
 //New return api router
-func New(chain *chain.Chain, stateCreator *state.Creator, txPool *txpool.TxPool, logDB *logdb.LogDB, nw node.Network, allowedOrigins string) (http.HandlerFunc, func()) {
+func New(chain *chain.Chain, stateCreator *state.Creator, txPool *txpool.TxPool, logDB *logdb.LogDB, nw node.Network, allowedOrigins string, backtraceLimit uint32, callGasLimit uint64) (http.HandlerFunc, func()) {
 	origins := strings.Split(strings.TrimSpace(allowedOrigins), ",")
 	for i, o := range origins {
 		origins[i] = strings.ToLower(strings.TrimSpace(o))
@@ -51,11 +51,11 @@ func New(chain *chain.Chain, stateCreator *state.Creator, txPool *txpool.TxPool,
 			http.Redirect(w, req, "doc/swagger-ui/", http.StatusTemporaryRedirect)
 		})
 
-	accounts.New(chain, stateCreator).
+	accounts.New(chain, stateCreator, callGasLimit).
 		Mount(router, "/accounts")
-	events.New(logDB).
+	eventslegacy.New(logDB).
 		Mount(router, "/events")
-	transfers.New(logDB).
+	transferslegacy.New(logDB).
 		Mount(router, "/transfers")
 	eventslegacy.New(logDB).
 		Mount(router, "/logs/events")
@@ -71,7 +71,7 @@ func New(chain *chain.Chain, stateCreator *state.Creator, txPool *txpool.TxPool,
 		Mount(router, "/transactions")
 	node.New(nw).
 		Mount(router, "/node")
-	subs := subscriptions.New(chain, origins)
+	subs := subscriptions.New(chain, origins, backtraceLimit)
 	subs.Mount(router, "/subscriptions")
 
 	return handlers.CORS(

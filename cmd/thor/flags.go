@@ -40,6 +40,21 @@ var (
 		Value: "",
 		Usage: "comma separated list of domains from which to accept cross origin requests to API",
 	}
+	apiTimeoutFlag = cli.IntFlag{
+		Name:  "api-timeout",
+		Value: 10000,
+		Usage: "API request timeout value in milliseconds",
+	}
+	apiCallGasLimitFlag = cli.IntFlag{
+		Name:  "api-call-gas-limit",
+		Value: 50000000,
+		Usage: "limit contract call gas",
+	}
+	apiBacktraceLimitFlag = cli.IntFlag{
+		Name:  "api-backtrace-limit",
+		Value: 1000,
+		Usage: "limit the distance between 'position' and best block for subscriptions APIs",
+	}
 	verbosityFlag = cli.IntFlag{
 		Name:  "verbosity",
 		Value: int(log15.LvlInfo),
