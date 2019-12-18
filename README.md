@@ -11,19 +11,25 @@ This is the first implementation written in golang.
 
 ## Table of contents
 
-* [Installation](#installation)
-    * [Requirements](#requirements)
-    * [Getting the source](#getting-the-source)
-    * [Dependency management](#dependency-management)
-    * [Building](#building)
-* [Running Thor](#running-thor)
-    * [Sub-commands](#sub-commands)
-* [Docker](#docker)
-* [Explorers](#explorers)
-* [Faucet](#testnet-faucet)
-* [RESTful API](#api)
-* [Acknowledgement](#acknowledgement)
-* [Contributing](#contributing)
+- [VeChain Thor    <img src="https://badges.gitter.im/vechain/thor.svg" alt="Gitter">](#vechain-thor-img-src%22httpsbadgesgitterimvechainthorsvg%22-alt%22gitter%22)
+  - [Table of contents](#table-of-contents)
+  - [Installation](#installation)
+    - [Requirements](#requirements)
+    - [Getting the source](#getting-the-source)
+    - [Dependency management](#dependency-management)
+    - [Building](#building)
+  - [Running Thor](#running-thor)
+    - [Sub-commands](#sub-commands)
+  - [Docker](#docker)
+  - [Explorers](#explorers)
+  - [Testnet faucet](#testnet-faucet)
+  - [API](#api)
+  - [Acknowledgement](#acknowledgement)
+  - [Contributing](#contributing)
+    - [Forking Thor](#forking-thor)
+    - [Getting ready for a pull request](#getting-ready-for-a-pull-request)
+    - [Making the pull request](#making-the-pull-request)
+  - [License](#license)
 
 ## Installation
 
@@ -153,10 +159,15 @@ Do not forget to add the `--api-addr 0.0.0.0:8669` flag if you want other contai
 The [Dockerfile](https://raw.githubusercontent.com/vechain/thor/master/Dockerfile) is designed to build the last release of the source code and will publish docker images to [dockerhub](https://hub.docker.com/r/vechain/thor/) by release, feel free to fork and build Dockerfile for your own purpose.
 
 ## Explorers
+Official Explorers
+
+- [VeChain Explorer](https://explore.vechain.org)
+- [Insight](https://insight.vecha.in/)
 
 Awesome explorers built by the community:
 
-- [VeForge](https://explore.veforge.com/) by *Totient Labs*
+- [VeChainStats](https://vechainstats.com/)
+- [Vexplorer](https://vexplorer.io/)
 
 ## Testnet faucet
 
